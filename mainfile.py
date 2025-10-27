@@ -1,3 +1,4 @@
+
 # ============================
 # Imports
 # ============================
@@ -223,7 +224,7 @@ class NeuralBayesianNetwork(BayesianNetwork):
             cpd = TabularCPD(
                 variable=variable,
                 variable_card=2,
-                values=predicted_cpd,
+                values=predicted_cp_d,
                 evidence=evidence,
                 evidence_card=[2] * len(evidence),
                 state_names={variable: [0, 1], **{e: [0, 1] for e in evidence}},
@@ -304,7 +305,8 @@ def generate_from_bng(
     seed=None,
 ):
     # Create generator instance
-    generator = bng.NetworkGenerator(random_state=seed)
+    set_seed(seed) # Set seed before generating network
+    generator = bng.NetworkGenerator()
     params = {
         "num_nodes": num_nodes,
         "node_cardinality": node_cardinality,
