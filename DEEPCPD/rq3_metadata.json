@@ -1,0 +1,208 @@
+{
+  "bins": {
+    "heart_rate": {
+      "edges": [
+        "-inf",
+        "60",
+        "100",
+        "inf"
+      ],
+      "labels": [
+        "bradycardia",
+        "normal",
+        "tachycardia"
+      ],
+      "rationale": "SIRS criterion >90 bpm; clinical thresholds 60/100"
+    },
+    "temperature": {
+      "edges": [
+        "-inf",
+        "36.0",
+        "38.0",
+        "inf"
+      ],
+      "labels": [
+        "hypothermia",
+        "normal",
+        "fever"
+      ],
+      "rationale": "SIRS criterion <36\u00b0C or >38\u00b0C"
+    },
+    "resp_rate": {
+      "edges": [
+        "-inf",
+        "12",
+        "20",
+        "inf"
+      ],
+      "labels": [
+        "low",
+        "normal",
+        "tachypnoea"
+      ],
+      "rationale": "SIRS criterion >20 breaths/min"
+    },
+    "map": {
+      "edges": [
+        "-inf",
+        "65",
+        "70",
+        "100",
+        "inf"
+      ],
+      "labels": [
+        "shock",
+        "low_normal",
+        "normal",
+        "high"
+      ],
+      "rationale": "Sepsis-3: MAP <65 mmHg = haemodynamic instability"
+    },
+    "spo2": {
+      "edges": [
+        "-inf",
+        "90",
+        "95",
+        "inf"
+      ],
+      "labels": [
+        "severe_hypoxia",
+        "mild_hypoxia",
+        "normal"
+      ],
+      "rationale": "Standard clinical oxygen saturation thresholds"
+    },
+    "wbc": {
+      "edges": [
+        "-inf",
+        "4",
+        "12",
+        "inf"
+      ],
+      "labels": [
+        "leucopaenia",
+        "normal",
+        "leucocytosis"
+      ],
+      "rationale": "SIRS criterion <4 or >12 x10^9/L"
+    },
+    "lactate": {
+      "edges": [
+        "-inf",
+        "2.0",
+        "4.0",
+        "inf"
+      ],
+      "labels": [
+        "normal",
+        "elevated",
+        "high"
+      ],
+      "rationale": "Sepsis-3: >2 mmol/L = tissue hypoperfusion risk"
+    },
+    "age": {
+      "edges": [
+        "-inf",
+        "45",
+        "65",
+        "inf"
+      ],
+      "labels": [
+        "young",
+        "middle",
+        "older"
+      ],
+      "rationale": "Standard age stratification for ICU risk"
+    }
+  },
+  "categoricals": {
+    "gender_enc": [
+      "female",
+      "male"
+    ],
+    "admission_type_enc": [
+      "emergency",
+      "urgent",
+      "elective_other"
+    ],
+    "first_careunit_enc": [
+      "MICU",
+      "SICU",
+      "MICU_SICU",
+      "CSRU",
+      "CCU",
+      "NICU",
+      "other"
+    ]
+  },
+  "node_states": {
+    "age": [
+      "middle",
+      "older",
+      "young"
+    ],
+    "gender": [
+      "female",
+      "male"
+    ],
+    "admission_type": [
+      "elective_other",
+      "emergency",
+      "urgent"
+    ],
+    "first_careunit": [
+      "CCU",
+      "CSRU",
+      "MICU",
+      "MICU_SICU",
+      "NICU",
+      "SICU",
+      "other"
+    ],
+    "heart_rate": [
+      "bradycardia",
+      "normal",
+      "tachycardia"
+    ],
+    "temperature": [
+      "fever",
+      "hypothermia",
+      "normal"
+    ],
+    "resp_rate": [
+      "low",
+      "normal",
+      "tachypnoea"
+    ],
+    "map": [
+      "high",
+      "low_normal",
+      "normal",
+      "shock"
+    ],
+    "spo2": [
+      "mild_hypoxia",
+      "normal",
+      "severe_hypoxia"
+    ],
+    "wbc": [
+      "leucocytosis",
+      "leucopaenia",
+      "normal"
+    ],
+    "lactate_measured": [
+      "no",
+      "yes"
+    ],
+    "lactate": [
+      "elevated",
+      "high",
+      "normal",
+      "not_measured"
+    ],
+    "sepsis": [
+      "no",
+      "yes"
+    ]
+  }
+}
