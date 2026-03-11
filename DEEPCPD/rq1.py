@@ -177,6 +177,7 @@ def fit_dt_bn(edges, train_df, card):
     return dt_models
 
 
+
 def fit_lr_bn(edges, train_df, card):
     lr_models = {}
     structure = BayesianNetwork(edges)
