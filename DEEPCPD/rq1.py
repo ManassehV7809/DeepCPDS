@@ -15,6 +15,8 @@ from scipy.stats import entropy
 from sklearn.model_selection import KFold
 from sklearn.tree import DecisionTreeClassifier
 from sklearn.linear_model import LogisticRegression as LR
+from sklearn.dummy import DummyClassifier
+
 
 
 # pgmpy
@@ -170,43 +172,47 @@ def fit_dt_bn(edges, train_df, card):
 
 
 def fit_lr_bn(edges, train_df, card):
-    """Fit a Logistic Regression CPD per node (linear structured baseline)."""
     lr_models = {}
     structure = BayesianNetwork(edges)
     for node in structure.nodes():
         parents = list(structure.get_parents(node))
         y = train_df[node].values.astype(int)
+
+        if len(np.unique(y)) < 2:
+            lr_models[node] = (None, parents, int(y[0]))
+            continue
+
         if parents:
             X_int = train_df[parents].values.astype(int)
             X = one_hot_encode_parent_matrix(X_int, card)
         else:
             X = np.zeros((len(train_df), 1), dtype=np.float32)
-        clf = LR(
-            max_iter=500,
-            random_state=42,
-            solver="lbfgs",
-            multi_class="multinomial",
-            C=1.0,
-        )
+
+        clf = LR(max_iter=500, random_state=42, solver="lbfgs", C=1.0)
         clf.fit(X, y)
-        lr_models[node] = (clf, parents)
+        lr_models[node] = (clf, parents, None)
     return lr_models
 
 
+
 def node_probs_from_sklearn(models_dict, node, ev_int, card):
-    """Query a sklearn CPD (DT or LR) for P(node | parents=ev_int)."""
-    clf, parents = models_dict[node]
+    clf, parents, dominant_class = models_dict[node]
+
+    if clf is None:
+        full_probs = np.full(card, 1e-8, dtype=float)
+        full_probs[dominant_class] = 1.0
+        return full_probs / full_probs.sum()
+
     if parents:
         x = one_hot_encode_parent_vector(ev_int, card).reshape(1, -1)
     else:
         x = np.zeros((1, 1), dtype=np.float32)
     probs = clf.predict_proba(x).flatten()
-    # predict_proba only returns columns for classes seen in training
-    # so we need to map back to the full cardinality
     full_probs = np.full(card, 1e-8, dtype=float)
     for i, cls in enumerate(clf.classes_):
         full_probs[int(cls)] = probs[i]
     return full_probs / full_probs.sum()
+
 
 
 def get_k_folds(dataset_size, max_k=5):
