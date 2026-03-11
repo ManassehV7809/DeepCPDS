@@ -149,10 +149,9 @@ def fit_tabular_bn(edges, train_df, states, rq1_cfg):
 
 def fit_dt_bn(edges, train_df, card):
     """Fit a Decision Tree CPD per node (Context-Specific Independence baseline)."""
-    nodes = list(BayesianNetwork(edges).nodes())
     dt_models = {}
     structure = BayesianNetwork(edges)
-    for node in nodes:
+    for node in structure.nodes():
         parents = list(structure.get_parents(node))
         y = train_df[node].values.astype(int)
         if parents:
@@ -172,10 +171,9 @@ def fit_dt_bn(edges, train_df, card):
 
 def fit_lr_bn(edges, train_df, card):
     """Fit a Logistic Regression CPD per node (linear structured baseline)."""
-    nodes = list(BayesianNetwork(edges).nodes())
     lr_models = {}
     structure = BayesianNetwork(edges)
-    for node in nodes:
+    for node in structure.nodes():
         parents = list(structure.get_parents(node))
         y = train_df[node].values.astype(int)
         if parents:
@@ -825,27 +823,40 @@ def merge_chunks(output_dir: str):
     per_structure_summary.to_csv(per_structure_path, index=False)
 
     across_summary = (
-        per_structure_summary.groupby(
-            [
-                "dataset_size",
-                "node_cardinality",
-                "arch_depth",
-                "layers_config",
-                "activation",
-                "optimizer",
-                "max_indegree",
-            ]
-        )
-        .agg(
-            mean_kl_nn_mean=("mean_kl_nn", "mean"),
-            mean_kl_nn_std=("mean_kl_nn", "std"),
-            mean_nll_nn_mean=("mean_nll_nn", "mean"),
-            mean_nll_nn_std=("mean_nll_nn", "std"),
-            mean_kl_tab_mean=("mean_kl_tab", "mean"),
-            num_structures_tested=("structure_seed", "nunique"),
-        )
-        .reset_index()
+    per_structure_summary.groupby(
+        [
+            "dataset_size",
+            "node_cardinality",
+            "arch_depth",
+            "layers_config",
+            "activation",
+            "optimizer",
+            "max_indegree",
+        ]
     )
+    .agg(
+        mean_kl_nn_mean=("mean_kl_nn", "mean"),
+        mean_kl_nn_std=("mean_kl_nn", "std"),
+        mean_kl_tab_mean=("mean_kl_tab", "mean"),
+        mean_kl_tab_std=("mean_kl_tab", "std"),
+        mean_kl_dt_mean=("mean_kl_dt", "mean"),
+        mean_kl_dt_std=("mean_kl_dt", "std"),
+        mean_kl_lr_mean=("mean_kl_lr", "mean"),
+        mean_kl_lr_std=("mean_kl_lr", "std"),
+        mean_nll_nn_mean=("mean_nll_nn", "mean"),
+        mean_nll_nn_std=("mean_nll_nn", "std"),
+        mean_nll_tab_mean=("mean_nll_tab", "mean"),
+        mean_nll_tab_std=("mean_nll_tab", "std"),
+        mean_nll_dt_mean=("mean_nll_dt", "mean"),
+        mean_nll_dt_std=("mean_nll_dt", "std"),
+        mean_nll_lr_mean=("mean_nll_lr", "mean"),
+        mean_nll_lr_std=("mean_nll_lr", "std"),
+        num_structures_tested=("structure_seed", "nunique"),
+    )
+    .reset_index()
+)
+
+
     across_summary_path = os.path.join(output_dir, "rq1_across_structures_summary.csv")
     across_summary.to_csv(across_summary_path, index=False)
 
