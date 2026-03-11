@@ -13,6 +13,9 @@ import torch.optim as optim
 
 from scipy.stats import entropy
 from sklearn.model_selection import KFold
+from sklearn.tree import DecisionTreeClassifier
+from sklearn.linear_model import LogisticRegression as LR
+
 
 # pgmpy
 try:
@@ -143,6 +146,70 @@ def fit_tabular_bn(edges, train_df, states, rq1_cfg):
         )
 
     return tab_bn
+
+def fit_dt_bn(edges, train_df, card):
+    """Fit a Decision Tree CPD per node (Context-Specific Independence baseline)."""
+    nodes = list(BayesianNetwork(edges).nodes())
+    dt_models = {}
+    structure = BayesianNetwork(edges)
+    for node in nodes:
+        parents = list(structure.get_parents(node))
+        y = train_df[node].values.astype(int)
+        if parents:
+            X_int = train_df[parents].values.astype(int)
+            X = one_hot_encode_parent_matrix(X_int, card)
+        else:
+            X = np.zeros((len(train_df), 1), dtype=np.float32)
+        clf = DecisionTreeClassifier(
+            max_depth=4,
+            min_samples_leaf=5,
+            random_state=42,
+        )
+        clf.fit(X, y)
+        dt_models[node] = (clf, parents)
+    return dt_models
+
+
+def fit_lr_bn(edges, train_df, card):
+    """Fit a Logistic Regression CPD per node (linear structured baseline)."""
+    nodes = list(BayesianNetwork(edges).nodes())
+    lr_models = {}
+    structure = BayesianNetwork(edges)
+    for node in nodes:
+        parents = list(structure.get_parents(node))
+        y = train_df[node].values.astype(int)
+        if parents:
+            X_int = train_df[parents].values.astype(int)
+            X = one_hot_encode_parent_matrix(X_int, card)
+        else:
+            X = np.zeros((len(train_df), 1), dtype=np.float32)
+        clf = LR(
+            max_iter=500,
+            random_state=42,
+            solver="lbfgs",
+            multi_class="multinomial",
+            C=1.0,
+        )
+        clf.fit(X, y)
+        lr_models[node] = (clf, parents)
+    return lr_models
+
+
+def node_probs_from_sklearn(models_dict, node, ev_int, card):
+    """Query a sklearn CPD (DT or LR) for P(node | parents=ev_int)."""
+    clf, parents = models_dict[node]
+    if parents:
+        x = one_hot_encode_parent_vector(ev_int, card).reshape(1, -1)
+    else:
+        x = np.zeros((1, 1), dtype=np.float32)
+    probs = clf.predict_proba(x).flatten()
+    # predict_proba only returns columns for classes seen in training
+    # so we need to map back to the full cardinality
+    full_probs = np.full(card, 1e-8, dtype=float)
+    for i, cls in enumerate(clf.classes_):
+        full_probs[int(cls)] = probs[i]
+    return full_probs / full_probs.sum()
+
 
 def get_k_folds(dataset_size, max_k=5):
     if dataset_size < 10:
@@ -480,7 +547,8 @@ def node_probs_from_neural(neural_bn: NeuralBayesianNetwork, node: str, parents,
     return probs
 
 
-def per_node_kl_and_nll(original_bn, neural_bn, tab_bn, test_df, node, card: int):
+def per_node_kl_and_nll(original_bn, neural_bn, tab_bn, dt_models, lr_models,
+                         test_df, node, card: int):
     parents = list(original_bn.get_parents(node))
     N = len(test_df)
 
@@ -493,7 +561,7 @@ def per_node_kl_and_nll(original_bn, neural_bn, tab_bn, test_df, node, card: int
     else:
         config_counts[(0,)] = N
 
-    kl_nn, kl_tab = 0.0, 0.0
+    kl_nn = kl_tab = kl_dt = kl_lr = 0.0
     total_weight = 0.0
 
     for ev_tuple, cnt in config_counts.items():
@@ -508,17 +576,23 @@ def per_node_kl_and_nll(original_bn, neural_bn, tab_bn, test_df, node, card: int
             ev_tuples = []
 
         p_true = smooth_distribution(node_probs_from_tabular(original_bn.get_cpds(node), ev_tuples))
-        p_tab = smooth_distribution(node_probs_from_tabular(tab_bn.get_cpds(node), ev_tuples))
-        p_nn = smooth_distribution(node_probs_from_neural(neural_bn, node, parents, ev, card))
+        p_tab  = smooth_distribution(node_probs_from_tabular(tab_bn.get_cpds(node), ev_tuples))
+        p_nn   = smooth_distribution(node_probs_from_neural(neural_bn, node, parents, ev, card))
+        p_dt   = smooth_distribution(node_probs_from_sklearn(dt_models, node, ev, card))
+        p_lr   = smooth_distribution(node_probs_from_sklearn(lr_models, node, ev, card))
 
-        kl_nn += weight * entropy(p_true, p_nn)
+        kl_nn  += weight * entropy(p_true, p_nn)
         kl_tab += weight * entropy(p_true, p_tab)
+        kl_dt  += weight * entropy(p_true, p_dt)
+        kl_lr  += weight * entropy(p_true, p_lr)
 
     if total_weight > 0 and abs(total_weight - 1.0) > 1e-6:
-        kl_nn /= total_weight
+        kl_nn  /= total_weight
         kl_tab /= total_weight
+        kl_dt  /= total_weight
+        kl_lr  /= total_weight
 
-    nll_nn, nll_tab = 0.0, 0.0
+    nll_nn = nll_tab = nll_dt = nll_lr = 0.0
     for _, row in test_df.iterrows():
         y = int(row[node])
         if parents:
@@ -528,19 +602,25 @@ def per_node_kl_and_nll(original_bn, neural_bn, tab_bn, test_df, node, card: int
             ev = np.array([], dtype=int)
             ev_tuples = []
 
-        p_nn_y = float(node_probs_from_neural(neural_bn, node, parents, ev, card)[y])
-        p_tab_y = float(node_probs_from_tabular(tab_bn.get_cpds(node), ev_tuples)[y])
-        p_nn_y = max(p_nn_y, 1e-12)
-        p_tab_y = max(p_tab_y, 1e-12)
+        p_nn_y  = max(float(node_probs_from_neural(neural_bn, node, parents, ev, card)[y]), 1e-12)
+        p_tab_y = max(float(node_probs_from_tabular(tab_bn.get_cpds(node), ev_tuples)[y]), 1e-12)
+        p_dt_y  = max(float(node_probs_from_sklearn(dt_models, node, ev, card)[y]), 1e-12)
+        p_lr_y  = max(float(node_probs_from_sklearn(lr_models, node, ev, card)[y]), 1e-12)
 
-        nll_nn += -math.log(p_nn_y)
+        nll_nn  += -math.log(p_nn_y)
         nll_tab += -math.log(p_tab_y)
+        nll_dt  += -math.log(p_dt_y)
+        nll_lr  += -math.log(p_lr_y)
 
     return {
-        "kl_nn": float(kl_nn),
+        "kl_nn":  float(kl_nn),
         "kl_tab": float(kl_tab),
-        "nll_nn": float(nll_nn / N),
+        "kl_dt":  float(kl_dt),
+        "kl_lr":  float(kl_lr),
+        "nll_nn":  float(nll_nn / N),
         "nll_tab": float(nll_tab / N),
+        "nll_dt":  float(nll_dt / N),
+        "nll_lr":  float(nll_lr / N),
         "configs_seen": int(len(config_counts)),
     }
 
@@ -643,37 +723,41 @@ def run_single_task(cfg, task_id: int, output_dir: str):
 
                             # Tabular baseline (MLE or Bayesian-smoothed depending on config)
                             tab_bn = fit_tabular_bn(edges, train_df, states, rq1)
+                            dt_models = fit_dt_bn(edges, train_df, card)
+                            lr_models = fit_lr_bn(edges, train_df, card)
 
                             for node in tab_bn.nodes():
-                                scores = per_node_kl_and_nll(
-                                    model_gt, neural_bn, tab_bn, test_df, node, card=card
-                                )
+                                scores = per_node_kl_and_nll(model_gt, neural_bn, tab_bn, dt_models, lr_models,test_df, node, card=card)
                                 out_rows.append({
-                                    "RQ": "RQ1",
-                                    "topology": topo,
-                                    "num_nodes": rq1["num_nodes"],
-                                    "node_cardinality": card,
-                                    "max_indegree": max_indegree,
-                                    "dataset_size": size,
-                                    "repeat": rep + 1,
-                                    "structure_idx": structure_idx + 1,
-                                    "structure_seed": struct_seed,
-                                    "train_seed": train_seed,
-                                    "fold": fold_idx,
-                                    "node": node,
-                                    "arch_depth": depth,
-                                    "activation": activation,
-                                    "optimizer": optimizer_name,
-                                    "layers_config": str(layers_config["layers"]),
-                                    "neural_time_sec": float(neural_time),
-                                    "kl_nn": scores["kl_nn"],
-                                    "kl_tab": scores["kl_tab"],
-                                    "nll_nn": scores["nll_nn"],
-                                    "nll_tab": scores["nll_tab"],
-                                    "configs_seen": scores["configs_seen"],
-                                    "gen_time_sec": gen_time,
-                                    "task_id": int(task_id),
-                                })
+    "RQ":               "RQ1",
+    "topology":         topo,
+    "num_nodes":        rq1["num_nodes"],
+    "node_cardinality": card,
+    "max_indegree":     max_indegree,
+    "dataset_size":     size,
+    "repeat":           rep + 1,
+    "structure_idx":    structure_idx + 1,
+    "structure_seed":   struct_seed,
+    "train_seed":       train_seed,
+    "fold":             fold_idx,
+    "node":             node,
+    "arch_depth":       depth,
+    "activation":       activation,
+    "optimizer":        optimizer_name,
+    "layers_config":    str(layers_config["layers"]),
+    "neural_time_sec":  float(neural_time),
+    "kl_nn":            scores["kl_nn"],
+    "kl_tab":           scores["kl_tab"],
+    "kl_dt":            scores["kl_dt"],
+    "kl_lr":            scores["kl_lr"],
+    "nll_nn":           scores["nll_nn"],
+    "nll_tab":          scores["nll_tab"],
+    "nll_dt":           scores["nll_dt"],
+    "nll_lr":           scores["nll_lr"],
+    "configs_seen":     scores["configs_seen"],
+    "gen_time_sec":     gen_time,
+    "task_id":          int(task_id),
+})
 
     df = pd.DataFrame(out_rows)
 
@@ -717,13 +801,24 @@ def merge_chunks(output_dir: str):
             ]
         )
         .agg(
-            mean_kl_nn=("kl_nn", "mean"),
-            std_kl_nn=("kl_nn", "std"),
-            mean_nll_nn=("nll_nn", "mean"),
-            std_nll_nn=("nll_nn", "std"),
-            mean_kl_tab=("kl_tab", "mean"),
-            std_kl_tab=("kl_tab", "std"),
-        )
+    mean_kl_nn=("kl_nn", "mean"),
+    std_kl_nn=("kl_nn", "std"),
+    mean_kl_tab=("kl_tab", "mean"),
+    std_kl_tab=("kl_tab", "std"),
+    mean_kl_dt=("kl_dt", "mean"),   
+    std_kl_dt=("kl_dt", "std"),     
+    mean_kl_lr=("kl_lr", "mean"),   
+    std_kl_lr=("kl_lr", "std"),     
+    mean_nll_nn=("nll_nn", "mean"),
+    std_nll_nn=("nll_nn", "std"),
+    mean_nll_tab=("nll_tab", "mean"), 
+    std_nll_tab=("nll_tab", "std"),     
+    mean_nll_dt=("nll_dt", "mean"),     
+    std_nll_dt=("nll_dt", "std"),       
+    mean_nll_lr=("nll_lr", "mean"),     
+    std_nll_lr=("nll_lr", "std"),       
+)
+
         .reset_index()
     )
     per_structure_path = os.path.join(output_dir, "rq1_per_structure_summary.csv")
