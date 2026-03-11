@@ -156,18 +156,24 @@ def fit_dt_bn(edges, train_df, card):
     for node in structure.nodes():
         parents = list(structure.get_parents(node))
         y = train_df[node].values.astype(int)
+
+        if len(np.unique(y)) < 2:
+            dt_models[node] = (None, parents, int(y[0]))
+            continue
+
         if parents:
             X_int = train_df[parents].values.astype(int)
             X = one_hot_encode_parent_matrix(X_int, card)
         else:
             X = np.zeros((len(train_df), 1), dtype=np.float32)
+
         clf = DecisionTreeClassifier(
             max_depth=4,
             min_samples_leaf=5,
             random_state=42,
         )
         clf.fit(X, y)
-        dt_models[node] = (clf, parents)
+        dt_models[node] = (clf, parents, None)
     return dt_models
 
 
