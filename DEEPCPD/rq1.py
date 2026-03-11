@@ -854,7 +854,7 @@ def merge_chunks(output_dir: str):
         num_structures_tested=("structure_seed", "nunique"),
     )
     .reset_index()
-)
+    )
 
 
     across_summary_path = os.path.join(output_dir, "rq1_across_structures_summary.csv")
