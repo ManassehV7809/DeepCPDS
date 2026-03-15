@@ -1,6 +1,6 @@
 # DeepCPD: Neural Conditional Probability Distributions for Bayesian Networks
 
-> **MSc Dissertation** — *Introducing DeepCPDs for Bayesian Network Parameterization*
+> **MSc Dissertation** - *Introducing DeepCPDs for Bayesian Network Parameterization*
 > University of the Witwatersrand, Johannesburg · 2026
 > Vusani Radzilani · Supervised by Prof. Ritesh Ajoodha & Dr. Rudzani Mulaudzi
 
@@ -37,14 +37,7 @@ This repository provides all experimental code for the three research questions 
 | `run_rq1_stats.py` / `run_stats.py` | Post-hoc statistics and aggregation |
 | `combine.py` | Merge per-job CSVs into combined result tables |
 
-### Result and plot directories
 
-| Directory | Contents |
-|---|---|
-| `RQ1_RESULTS_BASELINES`, `RQ1_RESULTS_COMBINED`, `RQ1_RESULTS_COMBINED_2` | RQ1 result CSVs |
-| `RQ2_RESULTS`, `RQ2_RESULTS0–2`, `RQ2_PILOT_RESULTS` | RQ2 result CSVs |
-| `RQ3_RESULTS`, `RQ3_RESULTS_BB_31126`, `RQ3_SCARCE_RESULTS` | RQ3 result CSVs |
-| `RQ1_PLOTS`, `RQ3_PLOTS` | PNG figures used in the dissertation |
 
 ### Data artefacts (not included)
 
@@ -139,7 +132,7 @@ These scripts merge individual job outputs into combined CSVs and compute aggreg
 
 RQ3 applies the DeepCPD + mBIC framework to a discretised MIMIC-IV sepsis cohort. Because MIMIC-IV is access-restricted, this repository provides only the scripts to construct and preprocess the cohort on a system where raw MIMIC-IV tables are available.
 
-### Step 1 — Build the cohort
+### Step 1 - Build the cohort
 
 ```bash
 python build_rq3_cohort.py
@@ -149,7 +142,7 @@ python build_rq3_cohort_2.py
 
 Reads from the local MIMIC-IV installation and writes `mimic_sepsis_rq3_cohort.csv` and `mimic_sepsis_rq3_extended.csv`.
 
-### Step 2 — Preprocess and discretise
+### Step 2 - Preprocess and discretise
 
 ```bash
 python preprocess_rq3_cohort.py
@@ -158,7 +151,7 @@ python preprocess_rq3_cohort_2.py
 
 Performs feature selection and engineering, train/validation/test splitting, and clinical variable discretisation. Produces `rq3_clinical_extended_discretised.csv`, `rq3_full_discretised.csv`, and `rq3_metadata.json`.
 
-### Step 3 — Run the main BN experiments
+### Step 3 - Run the main BN experiments
 
 ```bash
 python rq3.py
@@ -166,7 +159,7 @@ python rq3.py
 
 Loads the discretised cohort via `mimic_loader.py`, trains Tabular BN and DeepCPD models under BIC and mBIC, evaluates structural metrics (edge counts, SHD) and predictive metrics (per-node NLL, sepsis PR-AUC, F1), and writes outputs to `RQ3_RESULTS/` and `RQ3_RESULTS_BB_31126/`.
 
-### Step 4 — Scarcity and architecture analyses
+### Step 4 - Scarcity and architecture analyses
 
 ```bash
 # Data scarcity sensitivity
@@ -178,7 +171,7 @@ python rq3p2.py
 
 `rq3_scarce.py` subsamples training data at multiple fractions and evaluates Tabular vs DeepCPD performance under both scoring criteria, writing results to `RQ3_SCARCE_RESULTS/`. `rq3p2.py` sweeps DeepCPD architectures on fixed learned structures and produces CSVs for the architecture-sensitivity analysis.
 
-### Step 5 — Standalone discriminative baselines
+### Step 5 - Standalone discriminative baselines
 
 ```bash
 python rq3_baselines.py
@@ -196,11 +189,7 @@ Reads the RQ3 result CSVs and generates structural comparison plots, predictive 
 
 ---
 
-## HPC and Shell Scripts
 
-The repository includes shell scripts used on the Wits `mscluster` HPC system (`submit_all.sh`, `train_job.sh`, `rq2all.sh`, `rq3_scarce.sh`, and others). These wrap the Python commands in SLURM job submissions and configure resource requests and environment setup. They are cluster-specific and not required for local execution. To run on a different cluster, replace the SLURM directives with those appropriate for your scheduler and adjust paths as needed.
-
----
 
 ## Citation
 
